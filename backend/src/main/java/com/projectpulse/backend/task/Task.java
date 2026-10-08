@@ -5,6 +5,9 @@ import com.projectpulse.backend.user.User;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.time.LocalDate;
+import com.projectpulse.backend.comment.Comment;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
 
 @Entity
@@ -49,6 +52,10 @@ public class Task {
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @OneToMany(mappedBy = "task", cascade = CascadeType.REMOVE)
+    @Builder.Default
+    private List<Comment> comments = new ArrayList<>();
 
     @PrePersist
     void onCreate() {
