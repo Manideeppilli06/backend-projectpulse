@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import SetupCheck from './pages/SetupCheck';
 
 function ProtectedRoute({ children }) {
@@ -7,12 +9,22 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
-function Placeholder({ title }) {
+function PublicRoute({ children }) {
+  const { user } = useAuth();
+  return user ? <Navigate to="/" replace /> : children;
+}
+
+function TempHome() {
+  const { user, logout } = useAuth();
   return (
     <div className="center-screen">
-      <div>
-        <h1>{title}</h1>
-        <p className="muted">Coming in the next step.</p>
+      <div className="stack">
+        <h1>Welcome, {user.name}</h1>
+        <p className="muted">{user.email}</p>
+        <p className="muted">Workspaces are coming in the next step.</p>
+        <button className="btn btn-ghost" onClick={logout}>
+          Log out
+        </button>
       </div>
     </div>
   );
@@ -22,16 +34,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/setup-check" element={<SetupCheck />} />
-      <Route path="/login" element={<Placeholder title="Login" />} />
-      <Route path="/register" element={<Placeholder title="Register" />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Placeholder title="Home" />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/" element={<ProtectedRoute><TempHome /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
