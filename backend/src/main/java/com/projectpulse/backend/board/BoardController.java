@@ -1,6 +1,7 @@
 package com.projectpulse.backend.board;
 
 import com.projectpulse.backend.board.BoardDtos.*;
+import com.projectpulse.backend.realtime.BoardEvents;
 import com.projectpulse.backend.task.TaskRepository;
 import com.projectpulse.backend.user.User;
 import com.projectpulse.backend.user.UserRepository;
@@ -33,17 +34,20 @@ public class BoardController {
     private final WorkspaceMemberRepository memberRepository;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final BoardEvents boardEvents;
 
     public BoardController(BoardRepository boardRepository,
                            BoardListRepository listRepository,
                            WorkspaceMemberRepository memberRepository,
                            UserRepository userRepository,
-                           TaskRepository taskRepository) {
+                           TaskRepository taskRepository,
+                           BoardEvents boardEvents) {
         this.boardRepository = boardRepository;
         this.listRepository = listRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.boardEvents = boardEvents;
     }
 
     private User currentUser(Authentication auth) {
@@ -90,6 +94,7 @@ public class BoardController {
                     .build());
         }
 
+        boardEvents.publish(board.getId(), "board.created");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new BoardResponse(board.getId(), board.getName(), workspaceId));
     }
@@ -148,6 +153,7 @@ public class BoardController {
                 .board(board)
                 .build());
 
+        boardEvents.publish(boardId, "list.created");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ListResponse(list.getId(), list.getName(), list.getPosition()));
     }
