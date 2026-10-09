@@ -1,5 +1,6 @@
 package com.projectpulse.backend.task;
 
+import com.projectpulse.backend.workspace.WorkspaceRole;
 import com.projectpulse.backend.board.Board;
 import com.projectpulse.backend.board.BoardList;
 import com.projectpulse.backend.board.BoardListRepository;
@@ -228,6 +229,18 @@ public class TaskController {
         if (task == null) {
             return notFound("Task not found");
         }
+
+        Long workspaceId = task.getList().getBoard().getWorkspace().getId();
+        boolean isCreator = task.getCreatedBy().getId().equals(me.getId());
+        boolean isOwner = memberRepository.findByWorkspaceIdAndUserId(workspaceId, me.getId())
+                .map(m -> m.getRole() == WorkspaceRole.OWNER)
+                .orElse(false);
+
+        if (!isCreator && !isOwner) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Only the task creator or the workspace owner can delete this task"));
+        }
+
         Long listId = task.getList().getId();
         taskRepository.delete(task);
         taskRepository.flush();
