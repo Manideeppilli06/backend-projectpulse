@@ -3,7 +3,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { api } from '../api/client';
 import TaskCard from './TaskCard';
 
-export default function BoardColumn({ list, tasks, onTaskCreated }) {
+export default function BoardColumn({ list, tasks, onTaskCreated, onOpenTask }) {
   const { setNodeRef } = useDroppable({ id: `list-${list.id}` });
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -44,7 +44,7 @@ export default function BoardColumn({ list, tasks, onTaskCreated }) {
 
       <div className="column-body" ref={setNodeRef}>
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} />
+          <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
         ))}
       </div>
 

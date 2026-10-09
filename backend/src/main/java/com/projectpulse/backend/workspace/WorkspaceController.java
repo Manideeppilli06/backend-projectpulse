@@ -111,4 +111,23 @@ public class WorkspaceController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("message", "Member added", "email", invitee.getEmail()));
     }
+
+    @GetMapping("/{id}/members")
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> members(@PathVariable Long id, Authentication auth) {
+        User me = currentUser(auth);
+        if (!memberRepository.existsByWorkspaceIdAndUserId(id, me.getId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Workspace not found"));
+        }
+
+        List<MemberResponse> members = memberRepository.findAllForWorkspace(id).stream()
+                .map(m -> new MemberResponse(
+                        m.getUser().getId(),
+                        m.getUser().getName(),
+                        m.getUser().getEmail(),
+                        m.getRole()))
+                .toList();
+        return ResponseEntity.ok(members);
+    }
 }

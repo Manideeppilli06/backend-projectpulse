@@ -228,7 +228,10 @@ public class TaskController {
         if (task == null) {
             return notFound("Task not found");
         }
+        Long listId = task.getList().getId();
         taskRepository.delete(task);
+        taskRepository.flush();
+        renumber(new ArrayList<>(taskRepository.findByListIdOrderByPositionAsc(listId)));
         return ResponseEntity.noContent().build();
     }
 }

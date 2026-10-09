@@ -29,7 +29,7 @@ export function TaskCardView({ task, className = '' }) {
   );
 }
 
-export default function TaskCard({ task }) {
+export default function TaskCard({ task, onOpen }) {
   const id = `task-${task.id}`;
   const drag = useDraggable({ id });
   const drop = useDroppable({ id });
@@ -42,6 +42,7 @@ export default function TaskCard({ task }) {
       }}
       {...drag.listeners}
       {...drag.attributes}
+      onClick={() => onOpen && onOpen(task)}
       style={{ opacity: drag.isDragging ? 0.35 : 1 }}
     >
       <TaskCardView task={task} />

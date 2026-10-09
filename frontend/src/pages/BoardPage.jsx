@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   DndContext,
@@ -11,6 +11,7 @@ import {
 import { api } from '../api/client';
 import BoardColumn from '../components/BoardColumn';
 import { TaskCardView } from '../components/TaskCard';
+import TaskPanel from '../components/TaskPanel';
 import './BoardPage.css';
 
 function byList(tasks, listId) {
@@ -43,11 +44,14 @@ export default function BoardPage() {
   const { boardId } = useParams();
   const [board, setBoard] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [activeTask, setActiveTask] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const [addingList, setAddingList] = useState(false);
   const [listName, setListName] = useState('');
+  const suppressClick = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -57,11 +61,14 @@ export default function BoardPage() {
     let cancelled = false;
     setBoard(null);
     setTasks([]);
+    setSelectedId(null);
     Promise.all([api(`/api/boards/${boardId}`), api(`/api/boards/${boardId}/tasks`)])
-      .then(([boardData, taskData]) => {
+      .then(async ([boardData, taskData]) => {
+        const memberData = await api(`/api/workspaces/${boardData.workspaceId}/members`);
         if (!cancelled) {
           setBoard(boardData);
           setTasks(taskData);
+          setMembers(memberData);
           setError('');
         }
       })
@@ -83,19 +90,34 @@ export default function BoardPage() {
     return groups;
   }, [board, tasks]);
 
+  const selectedTask = tasks.find((t) => t.id === selectedId) || null;
+
   function reloadTasks() {
     api(`/api/boards/${boardId}/tasks`)
       .then(setTasks)
       .catch((err) => setActionError(err.message));
   }
 
+  function openTask(task) {
+    if (suppressClick.current) return;
+    setSelectedId(task.id);
+  }
+
+  function endDragState() {
+    setActiveTask(null);
+    setTimeout(() => {
+      suppressClick.current = false;
+    }, 150);
+  }
+
   function handleDragStart(event) {
+    suppressClick.current = true;
     const id = Number(String(event.active.id).replace('task-', ''));
     setActiveTask(tasks.find((t) => t.id === id) || null);
   }
 
   async function handleDragEnd({ active, over }) {
-    setActiveTask(null);
+    endDragState();
     if (!over) return;
 
     const taskId = Number(String(active.id).replace('task-', ''));
@@ -144,6 +166,16 @@ export default function BoardPage() {
     setTasks((prev) => [...prev, task]);
   }
 
+  function handleTaskUpdated(updated) {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
+  function handleTaskDeleted(id) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setSelectedId(null);
+    reloadTasks();
+  }
+
   async function addList(event) {
     event.preventDefault();
     if (!listName.trim()) return;
@@ -189,7 +221,7 @@ export default function BoardPage() {
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveTask(null)}
+        onDragCancel={endDragState}
       >
         <div className="columns">
           {board.lists.map((list) => (
@@ -198,6 +230,7 @@ export default function BoardPage() {
               list={list}
               tasks={tasksByList[list.id] || []}
               onTaskCreated={handleTaskCreated}
+              onOpenTask={openTask}
             />
           ))}
 
@@ -237,6 +270,17 @@ export default function BoardPage() {
           {activeTask ? <TaskCardView task={activeTask} className="task-overlay" /> : null}
         </DragOverlay>
       </DndContext>
+
+      {selectedTask && (
+        <TaskPanel
+          key={selectedTask.id}
+          task={selectedTask}
+          members={members}
+          onClose={() => setSelectedId(null)}
+          onUpdated={handleTaskUpdated}
+          onDeleted={handleTaskDeleted}
+        />
+      )}
     </>
   );
 }
