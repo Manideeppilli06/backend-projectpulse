@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   DndContext,
@@ -12,6 +12,7 @@ import { api } from '../api/client';
 import BoardColumn from '../components/BoardColumn';
 import { TaskCardView } from '../components/TaskCard';
 import TaskPanel from '../components/TaskPanel';
+import useBoardLive from '../hooks/useBoardLive';
 import './BoardPage.css';
 
 function byList(tasks, listId) {
@@ -51,7 +52,11 @@ export default function BoardPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [addingList, setAddingList] = useState(false);
   const [listName, setListName] = useState('');
+
   const suppressClick = useRef(false);
+  const draggingRef = useRef(false);
+  const pendingRefresh = useRef(false);
+  const refreshTimer = useRef(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -80,6 +85,41 @@ export default function BoardPage() {
     };
   }, [boardId]);
 
+  const refresh = useCallback(async () => {
+    try {
+      const [boardData, taskData] = await Promise.all([
+        api(`/api/boards/${boardId}`),
+        api(`/api/boards/${boardId}/tasks`),
+      ]);
+      setBoard(boardData);
+      setTasks(taskData);
+    } catch {
+      // ignore: the next live event or reconnect will try again
+    }
+  }, [boardId]);
+
+  const scheduleRefresh = useCallback(
+    (delay) => {
+      clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(refresh, delay);
+    },
+    [refresh]
+  );
+
+  useEffect(() => {
+    return () => clearTimeout(refreshTimer.current);
+  }, []);
+
+  const handleLiveEvent = useCallback(() => {
+    if (draggingRef.current) {
+      pendingRefresh.current = true;
+      return;
+    }
+    scheduleRefresh(250);
+  }, [scheduleRefresh]);
+
+  const connected = useBoardLive(boardId, handleLiveEvent);
+
   const tasksByList = useMemo(() => {
     const groups = {};
     if (board) {
@@ -92,12 +132,6 @@ export default function BoardPage() {
 
   const selectedTask = tasks.find((t) => t.id === selectedId) || null;
 
-  function reloadTasks() {
-    api(`/api/boards/${boardId}/tasks`)
-      .then(setTasks)
-      .catch((err) => setActionError(err.message));
-  }
-
   function openTask(task) {
     if (suppressClick.current) return;
     setSelectedId(task.id);
@@ -105,6 +139,11 @@ export default function BoardPage() {
 
   function endDragState() {
     setActiveTask(null);
+    draggingRef.current = false;
+    if (pendingRefresh.current) {
+      pendingRefresh.current = false;
+      scheduleRefresh(800);
+    }
     setTimeout(() => {
       suppressClick.current = false;
     }, 150);
@@ -112,6 +151,7 @@ export default function BoardPage() {
 
   function handleDragStart(event) {
     suppressClick.current = true;
+    draggingRef.current = true;
     const id = Number(String(event.active.id).replace('task-', ''));
     setActiveTask(tasks.find((t) => t.id === id) || null);
   }
@@ -158,7 +198,7 @@ export default function BoardPage() {
       });
     } catch (err) {
       setActionError(err.message);
-      reloadTasks();
+      refresh();
     }
   }
 
@@ -173,7 +213,7 @@ export default function BoardPage() {
   function handleTaskDeleted(id) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     setSelectedId(null);
-    reloadTasks();
+    refresh();
   }
 
   async function addList(event) {
@@ -212,6 +252,10 @@ export default function BoardPage() {
       </Link>
       <div className="page-header">
         <h1>{board.name}</h1>
+        <span className={`live ${connected ? 'live-on' : ''}`}>
+          <span className="live-dot" />
+          {connected ? 'Live' : 'Reconnecting...'}
+        </span>
       </div>
 
       {actionError && <p className="error-text" style={{ marginBottom: 12 }}>{actionError}</p>}

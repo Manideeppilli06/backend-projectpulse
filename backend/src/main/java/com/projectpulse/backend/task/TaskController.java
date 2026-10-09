@@ -1,14 +1,15 @@
 package com.projectpulse.backend.task;
 
-import com.projectpulse.backend.workspace.WorkspaceRole;
 import com.projectpulse.backend.board.Board;
 import com.projectpulse.backend.board.BoardList;
 import com.projectpulse.backend.board.BoardListRepository;
 import com.projectpulse.backend.board.BoardRepository;
+import com.projectpulse.backend.realtime.BoardEvents;
 import com.projectpulse.backend.task.TaskDtos.*;
 import com.projectpulse.backend.user.User;
 import com.projectpulse.backend.user.UserRepository;
 import com.projectpulse.backend.workspace.WorkspaceMemberRepository;
+import com.projectpulse.backend.workspace.WorkspaceRole;
 import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,17 +38,20 @@ public class TaskController {
     private final BoardListRepository listRepository;
     private final WorkspaceMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final BoardEvents boardEvents;
 
     public TaskController(TaskRepository taskRepository,
                           BoardRepository boardRepository,
                           BoardListRepository listRepository,
                           WorkspaceMemberRepository memberRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          BoardEvents boardEvents) {
         this.taskRepository = taskRepository;
         this.boardRepository = boardRepository;
         this.listRepository = listRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.boardEvents = boardEvents;
     }
 
     // ---------- helpers ----------
@@ -135,6 +139,7 @@ public class TaskController {
                 .createdBy(me)
                 .build());
 
+        boardEvents.publish(list.getBoard().getId(), "task.created");
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(task));
     }
 
@@ -180,7 +185,9 @@ public class TaskController {
         task.setDueDate(req.dueDate());
         task.setAssignee(assignee);
 
-        return ResponseEntity.ok(toResponse(taskRepository.save(task)));
+        Task saved = taskRepository.save(task);
+        boardEvents.publish(saved.getList().getBoard().getId(), "task.updated");
+        return ResponseEntity.ok(toResponse(saved));
     }
 
     @PatchMapping("/tasks/{taskId}/move")
@@ -218,6 +225,7 @@ public class TaskController {
             renumber(sourceTasks);
         }
 
+        boardEvents.publish(target.getBoard().getId(), "task.moved");
         return ResponseEntity.ok(toResponse(task));
     }
 
@@ -242,9 +250,12 @@ public class TaskController {
         }
 
         Long listId = task.getList().getId();
+        Long boardId = task.getList().getBoard().getId();
         taskRepository.delete(task);
         taskRepository.flush();
         renumber(new ArrayList<>(taskRepository.findByListIdOrderByPositionAsc(listId)));
+
+        boardEvents.publish(boardId, "task.deleted");
         return ResponseEntity.noContent().build();
     }
 }
