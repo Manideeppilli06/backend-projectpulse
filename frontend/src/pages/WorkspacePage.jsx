@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import Modal from '../components/Modal';
+import useLiveTopic from '../hooks/useLiveTopic';
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams();
@@ -20,6 +21,8 @@ export default function WorkspacePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const refreshTimer = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +44,25 @@ export default function WorkspacePage() {
       cancelled = true;
     };
   }, [workspaceId]);
+
+  const refreshBoards = useCallback(() => {
+    api(`/api/workspaces/${workspaceId}/boards`)
+      .then(setBoards)
+      .catch(() => {
+        // ignore: the next live event will try again
+      });
+  }, [workspaceId]);
+
+  const handleLiveEvent = useCallback(() => {
+    clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(refreshBoards, 300);
+  }, [refreshBoards]);
+
+  useEffect(() => {
+    return () => clearTimeout(refreshTimer.current);
+  }, []);
+
+  useLiveTopic(`/topic/workspaces/${workspaceId}`, handleLiveEvent);
 
   function openBoardModal() {
     setBoardName('');
@@ -136,12 +158,26 @@ export default function WorkspacePage() {
         </div>
       ) : (
         <div className="grid">
-          {boards.map((b) => (
-            <Link key={b.id} to={`/boards/${b.id}`} className="tile">
-              <h3>{b.name}</h3>
-              <p className="muted">Open board</p>
-            </Link>
-          ))}
+          {boards.map((b) => {
+            const percent =
+              b.totalTasks === 0 ? 0 : Math.round((b.doneTasks / b.totalTasks) * 100);
+            return (
+              <Link key={b.id} to={`/boards/${b.id}`} className="tile">
+                <h3>{b.name}</h3>
+                <div className="progress">
+                  <div className="progress-fill" style={{ width: `${percent}%` }} />
+                </div>
+                <div className="tile-meta">
+                  <span className="muted">
+                    {b.totalTasks === 0
+                      ? 'No tasks yet'
+                      : `${b.doneTasks} of ${b.totalTasks} done`}
+                  </span>
+                  <span className="badge">{percent}%</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
 

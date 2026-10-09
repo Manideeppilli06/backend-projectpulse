@@ -17,6 +17,10 @@ public final class BoardDtos {
     public record BoardResponse(Long id, String name, Long workspaceId) {
     }
 
+    public record BoardSummaryResponse(Long id, String name, Long workspaceId,
+                                       long totalTasks, long doneTasks) {
+    }
+
     public record ListResponse(Long id, String name, int position) {
     }
 

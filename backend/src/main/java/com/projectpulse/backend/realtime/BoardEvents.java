@@ -1,5 +1,6 @@
 package com.projectpulse.backend.realtime;
 
+import com.projectpulse.backend.board.BoardRepository;
 import java.util.Map;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -10,16 +11,25 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class BoardEvents {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final BoardRepository boardRepository;
 
-    public BoardEvents(SimpMessagingTemplate messagingTemplate) {
+    public BoardEvents(SimpMessagingTemplate messagingTemplate, BoardRepository boardRepository) {
         this.messagingTemplate = messagingTemplate;
+        this.boardRepository = boardRepository;
     }
 
     public void publish(Long boardId, String type) {
-        String destination = "/topic/boards/" + boardId;
+        Long workspaceId = boardRepository.findById(boardId)
+                .map(board -> board.getWorkspace().getId())
+                .orElse(null);
         Object payload = Map.of("type", type);
 
-        Runnable send = () -> messagingTemplate.convertAndSend(destination, payload);
+        Runnable send = () -> {
+            messagingTemplate.convertAndSend("/topic/boards/" + boardId, payload);
+            if (workspaceId != null) {
+                messagingTemplate.convertAndSend("/topic/workspaces/" + workspaceId, payload);
+            }
+        };
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

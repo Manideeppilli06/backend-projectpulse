@@ -10,4 +10,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByListBoardIdOrderByPositionAsc(Long boardId);
 
     long countByListId(Long listId);
+
+    long countByListBoardId(Long boardId);
+
+    long countByListBoardIdAndListNameIgnoreCase(Long boardId, String name);
 }

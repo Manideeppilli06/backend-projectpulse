@@ -1,6 +1,7 @@
 package com.projectpulse.backend.board;
 
 import com.projectpulse.backend.board.BoardDtos.*;
+import com.projectpulse.backend.task.TaskRepository;
 import com.projectpulse.backend.user.User;
 import com.projectpulse.backend.user.UserRepository;
 import com.projectpulse.backend.workspace.WorkspaceMember;
@@ -25,20 +26,24 @@ import org.springframework.web.server.ResponseStatusException;
 public class BoardController {
 
     private static final String[] DEFAULT_LISTS = {"To Do", "In Progress", "Done"};
+    private static final String DONE_LIST_NAME = "Done";
 
     private final BoardRepository boardRepository;
     private final BoardListRepository listRepository;
     private final WorkspaceMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
 
     public BoardController(BoardRepository boardRepository,
                            BoardListRepository listRepository,
                            WorkspaceMemberRepository memberRepository,
-                           UserRepository userRepository) {
+                           UserRepository userRepository,
+                           TaskRepository taskRepository) {
         this.boardRepository = boardRepository;
         this.listRepository = listRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.taskRepository = taskRepository;
     }
 
     private User currentUser(Authentication auth) {
@@ -97,9 +102,14 @@ public class BoardController {
             return notFound("Workspace not found");
         }
 
-        List<BoardResponse> boards = boardRepository
+        List<BoardSummaryResponse> boards = boardRepository
                 .findByWorkspaceIdOrderByCreatedAtDesc(workspaceId).stream()
-                .map(b -> new BoardResponse(b.getId(), b.getName(), workspaceId))
+                .map(b -> new BoardSummaryResponse(
+                        b.getId(),
+                        b.getName(),
+                        workspaceId,
+                        taskRepository.countByListBoardId(b.getId()),
+                        taskRepository.countByListBoardIdAndListNameIgnoreCase(b.getId(), DONE_LIST_NAME)))
                 .toList();
         return ResponseEntity.ok(boards);
     }

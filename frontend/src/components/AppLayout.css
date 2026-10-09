@@ -299,3 +299,22 @@ textarea.input {
     padding: 24px 20px;
   }
 }
+
+.progress {
+  height: 6px;
+  margin-top: 14px;
+  overflow: hidden;
+  background: var(--sage);
+  border-radius: 999px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--aqua);
+  border-radius: 999px;
+  transition: width 0.3s;
+}
+
+.tile .progress + .tile-meta {
+  margin-top: 10px;
+}
